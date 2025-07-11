@@ -4,7 +4,40 @@
   "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": {},
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./client": {
+      "types": "./src/client.ts",
+      "import": "./src/client.ts"
+    },
+    "./server": {
+      "types": "./src/server.ts",
+      "import": "./src/server.ts"
+    },
+    "./routes": {
+      "types": "./src/routes/index.ts",
+      "import": "./src/routes/index.ts"
+    },
+    "./query-params": {
+      "types": "./src/query-parameters/index.ts",
+      "import": "./src/query-parameters/index.ts"
+    },
+    "./query-params/client": {
+      "types": "./src/query-parameters/client.ts",
+      "import": "./src/query-parameters/client.ts"
+    },
+    "./query-params/server": {
+      "types": "./src/query-parameters/server.ts",
+      "import": "./src/query-parameters/server.ts"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "import": "./src/types.ts"
+    }
+  },
   "scripts": {
     "build": "bun build src/index.ts --outdir=dist --target=bun --format=esm",
     "build:server": "bun build src/server.ts --outdir=dist --target=bun --format=esm",
