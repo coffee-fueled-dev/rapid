@@ -1,82 +1,153 @@
-# Server Setup
+# Server & Client Architecture
 
-Configure and run your Rapid application server.
+Rapid is a full-stack React framework that provides both server-side rendering and client-side hydration with smart routing.
+
+## Architecture Overview
+
+### **RapidServer** (Server-Side)
+
+- **Role**: HTTP server that handles all requests
+- **Responsibilities**:
+  - Serves HTML pages with server-side rendering
+  - Handles API route requests
+  - Compiles and serves CSS (`/styles.css`)
+  - Compiles and serves client JavaScript bundle (`/client.js`)
+  - Executes middleware (auth, rate limiting, etc.)
+  - Manages asset compilation and caching
+
+### **RapidClient** (Client-Side)
+
+- **Role**: Hydrates the React app and handles client-side navigation
+- **Responsibilities**:
+  - Hydrates the server-rendered HTML
+  - Manages client-side routing with layout preservation
+  - Handles link clicks and browser navigation
+  - Provides progressive enhancement over server-rendered pages
+
+### **MicroRouter** (Client-Side Navigation)
+
+- **Role**: Smart client-side router that preserves layouts
+- **Key Features**:
+  - **Server-first navigation**: All navigation goes through the server to ensure middleware execution
+  - **Layout preservation**: Keeps shared layouts mounted during navigation
+  - **Progressive hydration**: Only re-renders components that changed
+  - **Fallback handling**: Falls back to full page reload on errors
+
+## How It Works Together
+
+### 1. **Initial Page Load (Server-Side)**
+
+```typescript
+// server.ts
+const server = new RapidServer({ cssCompiler });
+server.configureFromRoutes(app);
+await server.createServer(3000);
+```
+
+When a user visits `/dashboard`:
+
+1. RapidServer receives the request
+2. Executes any middleware (auth, rate limiting)
+3. Generates HTML with the React component tree
+4. Returns HTML with links to `/styles.css` and `/client.js`
+
+### 2. **Client-Side Hydration**
+
+```typescript
+// Generated automatically - included in client.js bundle
+const client = new RapidClient();
+client.configureFromRoutes(app); // Same routes as server
+```
+
+When the HTML loads:
+
+1. RapidClient hydrates the server-rendered HTML
+2. MicroRouter takes over navigation
+3. React components become interactive
+
+### 3. **Client-Side Navigation**
+
+```typescript
+// User clicks a link or navigates
+<Link to="/profile">Profile</Link>
+```
+
+When navigating to `/profile`:
+
+1. MicroRouter intercepts the click
+2. Makes a fetch request to `/profile` (server-side)
+3. Server executes middleware and returns HTML
+4. Client compares layouts and preserves shared ones
+5. Only re-renders the components that changed
 
 ## Basic Server Setup
 
 ```typescript
-import { ServerRegistry } from "@protologic/rapid/server";
+import { RapidServer } from "@protologic/rapid/server";
 import { app } from "./routes";
 
 async function main() {
-  const serverRegistry = new ServerRegistry();
-  serverRegistry.configureFromRoutes(app);
+  const server = new RapidServer({
+    cssCompiler: () => compileUnoCSS(config), // Optional CSS compilation
+    enableRateLimit: true, // Enable DoS protection
+    maxRequestSize: 2 * 1024 * 1024, // 2MB max request size
+  });
 
-  await serverRegistry.createServer(3000);
+  server.configureFromRoutes(app);
+
+  // Pre-compile assets for production
+  if (process.env.NODE_ENV === "production") {
+    await server.precompile();
+  }
+
+  await server.createServer(3000);
 }
 
 main();
 ```
 
-## Server Configuration Options
+## Route Definition (Shared)
+
+The same Routes instance is used by both server and client:
 
 ```typescript
-const serverRegistry = new ServerRegistry({
-  enableRateLimit: true, // Enable DoS protection
-  maxRequestSize: 2 * 1024 * 1024, // 2MB max request size
-  cssCompiler: () => compileCSS(), // CSS compilation function
-});
+// routes.ts - Used by both server and client
+import { Routes, page, api, routes } from "@protologic/rapid";
+
+const dashboardRoutes = new Routes()
+  .middleware(requireAuth) // Middleware applied to all routes
+  .layout(DashboardLayout) // Layout applied to all routes
+  .segment("", page(DashboardHome))
+  .segment("users", page(DashboardUsers));
+
+export const app = new Routes()
+  .layout(RootLayout) // Global layout
+  .segment("/", page(HomePage))
+  .segment("/dashboard", routes(dashboardRoutes))
+  .segment("/api/users", api(handleUsers));
 ```
 
-## CSS Compilation
+## Key Benefits
 
-### With UnoCSS
+### **Layout Preservation**
 
-```typescript
-import { ServerRegistry, compileUnoCSS } from "@protologic/rapid/server";
-import unoConfig from "./uno.config";
+When navigating from `/dashboard` to `/dashboard/users`:
 
-const cssCompiler = () => compileUnoCSS(unoConfig);
+- `RootLayout` and `DashboardLayout` stay mounted
+- Only `DashboardUsers` component re-renders
+- Preserves form state, scroll position, etc.
 
-const serverRegistry = new ServerRegistry({
-  cssCompiler,
-});
-```
+### **Middleware Execution**
 
-### Custom CSS Compiler
+- All navigation (including client-side) goes through server middleware
+- Ensures auth checks, rate limiting, etc. always work
+- Provides consistent security model
 
-```typescript
-async function customCSSCompiler(): Promise<string> {
-  // Your custom CSS compilation logic
-  const css = await compileSass("./styles/main.scss");
-  return css;
-}
+### **Progressive Enhancement**
 
-const serverRegistry = new ServerRegistry({
-  cssCompiler: customCSSCompiler,
-});
-```
-
-## Production Builds
-
-Pre-compile assets for production:
-
-```typescript
-async function main() {
-  const serverRegistry = new ServerRegistry({
-    cssCompiler: () => compileUnoCSS(unoConfig),
-  });
-
-  serverRegistry.configureFromRoutes(app);
-
-  // Pre-compile for production
-  if (process.env.NODE_ENV === "production") {
-    await serverRegistry.precompile();
-  }
-
-  await serverRegistry.createServer(3000);
-}
-```
+- Works without JavaScript (server-side rendering)
+- Enhanced with JavaScript (client-side routing)
+- Graceful fallback to full page reload on errors
 
 ## Environment Variables
 
@@ -84,121 +155,45 @@ async function main() {
 const port = parseInt(process.env.PORT || "3000");
 const isDev = process.env.NODE_ENV !== "production";
 
-const serverRegistry = new ServerRegistry({
+const server = new RapidServer({
   enableRateLimit: !isDev, // Disable rate limiting in development
   cssCompiler: isDev ? undefined : () => compileUnoCSS(unoConfig),
 });
-
-await serverRegistry.createServer(port);
 ```
 
-## Error Handling
+## Client Bundle Generation
 
-```typescript
-async function main() {
-  try {
-    const serverRegistry = new ServerRegistry();
-    serverRegistry.configureFromRoutes(app);
+The server automatically generates a client bundle that includes:
 
-    await serverRegistry.createServer(3000);
-    console.log("✅ Server started on http://localhost:3000");
-  } catch (error) {
-    console.error("❌ Failed to start server:", error);
-    process.exit(1);
-  }
-}
+- RapidClient initialization code
+- All your React components
+- The same route definitions as the server
+- Navigation handling logic
 
-main();
-```
-
-## Docker Setup
-
-**Dockerfile:**
-
-```dockerfile
-FROM oven/bun:1 as base
-WORKDIR /app
-
-# Install dependencies
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
-
-# Copy source code
-COPY . .
-
-# Pre-compile assets
-RUN bun run build
-
-# Expose port
-EXPOSE 3000
-
-# Start server
-CMD ["bun", "run", "src/server.ts"]
-```
-
-**Build script in package.json:**
-
-```json
-{
-  "scripts": {
-    "build": "NODE_ENV=production bun run src/precompile.ts",
-    "start": "NODE_ENV=production bun run src/server.ts",
-    "dev": "bun run src/server.ts"
-  }
-}
-```
+You don't need to manually configure the client side - it's generated automatically from your server routes.
 
 ## Complete Example
 
 ```typescript
-import { ServerRegistry, compileUnoCSS } from "@protologic/rapid/server";
-import { app } from "./routes";
-import unoConfig from "./uno.config";
+import { RapidServer } from "@protologic/rapid/server";
+import { Routes, page, api } from "@protologic/rapid";
+import { HomePage } from "./components/home";
+import { handleAPI } from "./api/users";
 
-async function main() {
-  try {
-    // Configure CSS compilation
-    const cssCompiler = () => compileUnoCSS(unoConfig);
+// Define your routes (shared between client and server)
+const app = new Routes()
+  .segment("/", page(HomePage, { title: "Home" }))
+  .segment("/api/users", api(handleAPI));
 
-    // Create server registry
-    const serverRegistry = new ServerRegistry({
-      cssCompiler,
-      enableRateLimit: process.env.NODE_ENV === "production",
-      maxRequestSize: 5 * 1024 * 1024, // 5MB for file uploads
-    });
-
-    // Configure routes
-    serverRegistry.configureFromRoutes(app);
-
-    // Pre-compile for production
-    if (process.env.NODE_ENV === "production") {
-      console.log("🔧 Pre-compiling assets...");
-      await serverRegistry.precompile();
-      console.log("✅ Assets pre-compiled");
-    }
-
-    // Start server
-    const port = parseInt(process.env.PORT || "3000");
-    await serverRegistry.createServer(port);
-
-    console.log(`🚀 Server running on http://localhost:${port}`);
-    console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
-  } catch (error) {
-    console.error("❌ Server startup failed:", error);
-    process.exit(1);
-  }
-}
-
-// Handle graceful shutdown
-process.on("SIGINT", () => {
-  console.log("\n👋 Shutting down server...");
-  process.exit(0);
-});
-
-process.on("SIGTERM", () => {
-  console.log("\n👋 Shutting down server...");
-  process.exit(0);
-});
-
-main();
+// Server setup
+const server = new RapidServer();
+server.configureFromRoutes(app);
+await server.createServer(3000);
 ```
+
+The client-side code is generated automatically and handles:
+
+- Hydrating the server-rendered HTML
+- Setting up client-side routing
+- Preserving layouts during navigation
+- Handling errors gracefully

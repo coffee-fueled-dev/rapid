@@ -1,22 +1,24 @@
 /**
- * Client-side query parameter hooks for React components
+ * Simple client-side query parameter utilities
  */
 
 import { useState, useEffect, useCallback } from "react";
-import type { QueryParams, QueryParamSchema } from "../query-params";
 import {
+  type QueryParams,
   parseQueryString,
-  parseQueryParams,
   stringifyQueryParams,
   mergeQueryParams,
   getQueryParam,
   getQueryParamArray,
-} from "../query-params";
+} from "./shared";
 
 /**
  * Hook to get current query parameters
  */
-export function useQueryParams(): QueryParams {
+export function useQueryParams(): [
+  QueryParams,
+  (updates: Partial<QueryParams>) => void
+] {
   const [params, setParams] = useState<QueryParams>(() => {
     if (typeof window === "undefined") return {};
     return parseQueryString(window.location.search);
@@ -53,30 +55,11 @@ export function useQueryParams(): QueryParams {
     };
   }, []);
 
-  return params;
-}
-
-/**
- * Hook to get and set query parameters with type safety
- */
-export function useTypedQueryParams<T extends Record<string, any>>(
-  schema: QueryParamSchema
-): [T, (updates: Partial<T>) => void] {
-  const rawParams = useQueryParams();
-
-  const typedParams = parseQueryParams<T>(
-    typeof window !== "undefined" ? window.location.search : "",
-    schema
-  );
-
-  const setParams = useCallback((updates: Partial<T>) => {
+  const setQueryParams = useCallback((updates: Partial<QueryParams>) => {
     if (typeof window === "undefined") return;
 
     const currentParams = parseQueryString(window.location.search);
-    const mergedParams = mergeQueryParams(
-      currentParams,
-      updates as QueryParams
-    );
+    const mergedParams = mergeQueryParams(currentParams, updates);
     const newSearch = stringifyQueryParams(mergedParams);
 
     const newUrl = `${window.location.pathname}${
@@ -85,7 +68,7 @@ export function useTypedQueryParams<T extends Record<string, any>>(
     window.history.pushState({}, "", newUrl);
   }, []);
 
-  return [typedParams, setParams];
+  return [params, setQueryParams];
 }
 
 /**
@@ -95,24 +78,14 @@ export function useQueryParam(
   key: string,
   defaultValue?: string
 ): [string | undefined, (value: string | undefined) => void] {
-  const params = useQueryParams();
+  const [params, setParams] = useQueryParams();
   const value = getQueryParam(params, key, defaultValue);
 
   const setValue = useCallback(
     (newValue: string | undefined) => {
-      if (typeof window === "undefined") return;
-
-      const currentParams = parseQueryString(window.location.search);
-      const updates: QueryParams = { [key]: newValue };
-      const mergedParams = mergeQueryParams(currentParams, updates);
-      const newSearch = stringifyQueryParams(mergedParams);
-
-      const newUrl = `${window.location.pathname}${
-        newSearch ? `?${newSearch}` : ""
-      }`;
-      window.history.pushState({}, "", newUrl);
+      setParams({ [key]: newValue });
     },
-    [key]
+    [key, setParams]
   );
 
   return [value, setValue];
@@ -125,40 +98,15 @@ export function useQueryParamArray(
   key: string,
   defaultValue: string[] = []
 ): [string[], (values: string[]) => void] {
-  const params = useQueryParams();
+  const [params, setParams] = useQueryParams();
   const values = getQueryParamArray(params, key, defaultValue);
 
   const setValues = useCallback(
     (newValues: string[]) => {
-      if (typeof window === "undefined") return;
-
-      const currentParams = parseQueryString(window.location.search);
-      const updates: QueryParams = {
-        [key]: newValues.length > 0 ? newValues : undefined,
-      };
-      const mergedParams = mergeQueryParams(currentParams, updates);
-      const newSearch = stringifyQueryParams(mergedParams);
-
-      const newUrl = `${window.location.pathname}${
-        newSearch ? `?${newSearch}` : ""
-      }`;
-      window.history.pushState({}, "", newUrl);
+      setParams({ [key]: newValues.length > 0 ? newValues : undefined });
     },
-    [key]
+    [key, setParams]
   );
 
   return [values, setValues];
-}
-
-/**
- * Hook for navigation with query parameters
- */
-export function useQueryNavigation() {
-  return useCallback((path: string, params?: QueryParams) => {
-    if (typeof window === "undefined") return;
-
-    const search = params ? stringifyQueryParams(params) : "";
-    const url = `${path}${search ? `?${search}` : ""}`;
-    window.history.pushState({}, "", url);
-  }, []);
 }

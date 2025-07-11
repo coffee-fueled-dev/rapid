@@ -8,14 +8,6 @@ export interface QueryParams {
   [key: string]: QueryParamValue;
 }
 
-export interface QueryParamSchema {
-  [key: string]: {
-    type: "string" | "number" | "boolean" | "array";
-    required?: boolean;
-    default?: any;
-  };
-}
-
 /**
  * Parse query string into an object
  */
@@ -56,65 +48,6 @@ export function stringifyQueryParams(params: QueryParams): string {
   }
 
   return urlParams.toString();
-}
-
-/**
- * Parse and validate query parameters against a schema
- */
-export function parseQueryParams<T extends Record<string, any>>(
-  search: string,
-  schema: QueryParamSchema
-): T {
-  const rawParams = parseQueryString(search);
-  const result: any = {};
-
-  for (const [key, config] of Object.entries(schema)) {
-    const rawValue = rawParams[key];
-
-    if (rawValue === undefined) {
-      if (config.required) {
-        throw new Error(`Required query parameter '${key}' is missing`);
-      }
-      result[key] = config.default;
-      continue;
-    }
-
-    try {
-      switch (config.type) {
-        case "string":
-          result[key] = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-          break;
-
-        case "number":
-          const numValue = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-          result[key] = parseFloat(numValue);
-          if (isNaN(result[key])) {
-            throw new Error(`Invalid number value for '${key}': ${numValue}`);
-          }
-          break;
-
-        case "boolean":
-          const boolValue = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-          result[key] = boolValue === "true" || boolValue === "1";
-          break;
-
-        case "array":
-          result[key] = Array.isArray(rawValue) ? rawValue : [rawValue];
-          break;
-
-        default:
-          result[key] = rawValue;
-      }
-    } catch (error) {
-      throw new Error(
-        `Error parsing query parameter '${key}': ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
-  }
-
-  return result as T;
 }
 
 /**

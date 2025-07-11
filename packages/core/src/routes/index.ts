@@ -1,21 +1,44 @@
-import type {
-  PageRoute,
-  ServerRoute,
-  ApiRoute,
-  SegmentOptions,
-  SegmentDescriptor,
-  LayoutProps,
-  ServerFunction,
-} from "../types";
+/**
+ * Routes v2 - Functional Implementation
+ *
+ * A more functional approach to route management with:
+ * - Immutable state management
+ * - Pure functions for route processing
+ * - Better testability
+ * - Composable route logic
+ */
 
-interface SegmentEntry {
-  path: string;
-  options: SegmentOptions;
-}
+import type { LayoutProps, ServerFunction } from "@/types";
+
+// Import functional modules
+import {
+  createRouteState,
+  addSegment,
+  setLayout,
+  setMiddleware,
+  type RouteState,
+} from "./route-state";
+
+import {
+  flattenRoutes,
+  extractServerRoutes,
+  extractPaths,
+  filterRoutesByPattern,
+  findRouteByPath,
+  groupRoutes,
+  type RouteContext,
+  type FlattenResult,
+} from "./route-functions";
+import type { ClientRoute } from "@/rapid-client";
+import type { ApiRoute, PageRoute } from "@/rapid-server/handlers";
+import type { SegmentDescriptor } from "./factories";
 
 /**
  * Routes class provides a unified API for defining both page and API routes
  * using a single `.segment()` method with hierarchical middleware and layouts.
+ *
+ * This functional version maintains the same public API while using immutable
+ * state management and pure functions internally.
  *
  * @example
  * ```typescript
@@ -36,23 +59,19 @@ interface SegmentEntry {
  *   .segment("/admin", routes(adminRoutes))
  *   .segment("/api/health", api(healthCheckHandler));
  * ```
- *
- * Key features:
- * - Unified `.segment()` method with declarative descriptors
- * - Hierarchical middleware application (top-down)
- * - Hierarchical layout application (top-down)
- * - Type-safe segment descriptors (page(), api(), routes())
  */
 export class Routes {
-  private segments: SegmentEntry[] = [];
-  private currentLayout?: React.ComponentType<LayoutProps>;
-  private currentMiddleware?: ServerFunction;
+  private state: RouteState;
+
+  constructor() {
+    this.state = createRouteState();
+  }
 
   /**
    * Set a layout that applies to all subsequent routes and nested segments
    */
   layout(layoutComponent: React.ComponentType<LayoutProps>): this {
-    this.currentLayout = layoutComponent;
+    this.state = setLayout(this.state, layoutComponent);
     return this;
   }
 
@@ -60,7 +79,7 @@ export class Routes {
    * Set middleware that applies to all subsequent routes and nested segments
    */
   middleware(middlewareFunction: ServerFunction): this {
-    this.currentMiddleware = middlewareFunction;
+    this.state = setMiddleware(this.state, middlewareFunction);
     return this;
   }
 
@@ -82,165 +101,156 @@ export class Routes {
    * ```
    */
   segment(path: string, descriptor: SegmentDescriptor): this {
-    this.segments.push({ path, options: { resolver: descriptor } });
+    this.state = addSegment(this.state, path, descriptor);
     return this;
   }
 
   /**
-   * Flatten the hierarchical route structure into a flat list of PageRoutes
+   * Flatten the hierarchical route structure into a flat list of Routes
    */
-  getPageRoutes(): PageRoute[] {
-    return this.flattenRoutes("", [], []);
+  getClientRoutes(): ClientRoute[] {
+    const context: RouteContext = {
+      basePath: "",
+      parentLayouts: [],
+      parentMiddleware: [],
+    };
+
+    const result = flattenRoutes(this.state, context);
+    return result.clientRoutes;
   }
 
   /**
    * Get API routes
    */
   getApiRoutes(): ApiRoute[] {
-    return this.flattenApiRoutes("", []);
+    const context: RouteContext = {
+      basePath: "",
+      parentLayouts: [],
+      parentMiddleware: [],
+    };
+
+    const result = flattenRoutes(this.state, context);
+    return result.apiRoutes;
   }
 
   /**
    * Get server routes (without components and layouts)
    */
-  getServerRoute(): ServerRoute[] {
-    return this.getPageRoutes().map(
-      ({ component, layouts, ...serverRoute }) => serverRoute,
-    );
+  getServerRoute(): PageRoute[] {
+    const pageRoutes = this.getClientRoutes();
+    return extractServerRoutes(pageRoutes);
   }
 
   /**
    * Get page paths
    */
   getPagePaths(): string[] {
-    return this.getPageRoutes().map((route) => route.path);
+    const pageRoutes = this.getClientRoutes();
+    return extractPaths(pageRoutes);
   }
 
   /**
    * Get API paths
    */
   getApiPaths(): string[] {
-    return this.getApiRoutes().map((route) => route.path);
+    const apiRoutes = this.getApiRoutes();
+    return extractPaths(apiRoutes);
   }
 
   /**
-   * Recursively flatten routes, building up layout and middleware hierarchy and concatenating paths
+   * Get current state (for testing and debugging)
    */
-  private flattenRoutes(
-    basePath: string,
-    parentLayouts: React.ComponentType<LayoutProps>[],
-    parentMiddleware: ServerFunction[],
-  ): PageRoute[] {
-    const flattened: PageRoute[] = [];
+  getState(): RouteState {
+    return { ...this.state };
+  }
 
-    // Current layout stack (parent layouts + current layout)
-    const currentLayouts = this.currentLayout
-      ? [...parentLayouts, this.currentLayout]
-      : parentLayouts;
+  // Additional functional methods enabled by the new architecture
 
-    // Current middleware stack (parent middleware + current middleware)
-    const currentMiddlewareStack = this.currentMiddleware
-      ? [...parentMiddleware, this.currentMiddleware]
-      : parentMiddleware;
-
-    // Process unified segments
-    for (const { path, options } of this.segments) {
-      const fullPath = this.joinPaths(basePath, path);
-      const { resolver } = options;
-
-      // Handle different segment types declaratively
-      if (resolver._type === "page") {
-        // It's a page segment
-        flattened.push({
-          path: fullPath,
-          component: resolver.component,
-          layouts: currentLayouts,
-          metadata: resolver.metadata || { title: `Page ${fullPath}` },
-          middleware:
-            currentMiddlewareStack.length === 1
-              ? currentMiddlewareStack[0]
-              : currentMiddlewareStack.length > 1
-                ? currentMiddlewareStack
-                : undefined,
-          rateLimit: resolver.rateLimit,
-        });
-      } else if (resolver._type === "routes") {
-        // It's nested routes - recursively flatten
-        const nestedRoutes = (resolver.routes as Routes)
-          .flattenRoutes(fullPath, currentLayouts, currentMiddlewareStack)
-          .map((route: PageRoute) => ({
-            ...route,
-            path: route.path, // Path is already computed in recursive call
-          }));
-        flattened.push(...nestedRoutes);
-      }
-      // Skip API segments in page route flattening
-    }
-
-    return flattened;
+  /**
+   * Find a page route by exact path
+   */
+  findRoute(path: string): ClientRoute | undefined {
+    const pageRoutes = this.getClientRoutes();
+    return findRouteByPath(pageRoutes, path);
   }
 
   /**
-   * Recursively flatten API routes from unified segments
+   * Find an API route by exact path
    */
-  private flattenApiRoutes(
-    basePath: string,
-    parentMiddleware: ServerFunction[],
-  ): ApiRoute[] {
-    // Only process on server-side
-    if (typeof window !== "undefined") {
-      return [];
-    }
-
-    const flattened: ApiRoute[] = [];
-
-    // Current middleware stack (parent middleware + current middleware)
-    const currentMiddlewareStack = this.currentMiddleware
-      ? [...parentMiddleware, this.currentMiddleware]
-      : parentMiddleware;
-
-    // Process unified segments
-    for (const { path, options } of this.segments) {
-      const fullPath = this.joinPaths(basePath, path);
-      const { resolver } = options;
-
-      if (resolver._type === "api") {
-        // It's an API segment
-        flattened.push({
-          path: fullPath,
-          handler: resolver.handler,
-          middleware:
-            currentMiddlewareStack.length === 1
-              ? currentMiddlewareStack[0]
-              : currentMiddlewareStack.length > 1
-                ? currentMiddlewareStack
-                : undefined,
-          rateLimit: resolver.rateLimit,
-        });
-      } else if (resolver._type === "routes") {
-        // It's nested routes - recursively flatten
-        const nestedApiRoutes = (resolver.routes as Routes).flattenApiRoutes(
-          fullPath,
-          currentMiddlewareStack,
-        );
-        flattened.push(...nestedApiRoutes);
-      }
-      // Skip page segments in API route flattening
-    }
-
-    return flattened;
+  findApiRoute(path: string): ApiRoute | undefined {
+    const apiRoutes = this.getApiRoutes();
+    return findRouteByPath(apiRoutes, path);
   }
 
   /**
-   * Join path segments, handling leading/trailing slashes
+   * Filter page routes by path pattern
    */
-  private joinPaths(base: string, path: string): string {
-    if (!base) return path;
-    if (!path) return base;
+  filterRoutes(pattern: RegExp): ClientRoute[] {
+    const pageRoutes = this.getClientRoutes();
+    return filterRoutesByPattern(pageRoutes, pattern);
+  }
 
-    const cleanBase = base.endsWith("/") ? base.slice(0, -1) : base;
-    const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+  /**
+   * Filter API routes by path pattern
+   */
+  filterApiRoutes(pattern: RegExp): ApiRoute[] {
+    const apiRoutes = this.getApiRoutes();
+    return filterRoutesByPattern(apiRoutes, pattern);
+  }
 
-    return `${cleanBase}/${cleanPath}`;
+  /**
+   * Group page routes by a custom key function
+   */
+  groupRoutes<K extends string | number | symbol>(
+    keyFn: (route: ClientRoute) => K
+  ): Record<K, ClientRoute[]> {
+    const pageRoutes = this.getClientRoutes();
+    return groupRoutes(pageRoutes, keyFn);
+  }
+
+  /**
+   * Group API routes by a custom key function
+   */
+  groupApiRoutes<K extends string | number | symbol>(
+    keyFn: (route: ApiRoute) => K
+  ): Record<K, ApiRoute[]> {
+    const apiRoutes = this.getApiRoutes();
+    return groupRoutes(apiRoutes, keyFn);
+  }
+
+  /**
+   * Get all routes (both page and API) as a combined result
+   */
+  getAllRoutes(): FlattenResult {
+    const context: RouteContext = {
+      basePath: "",
+      parentLayouts: [],
+      parentMiddleware: [],
+    };
+
+    return flattenRoutes(this.state, context);
+  }
+
+  /**
+   * Check if any routes are defined
+   */
+  hasRoutes(): boolean {
+    return this.state.segments.length > 0;
+  }
+
+  /**
+   * Get the number of segments defined
+   */
+  getSegmentCount(): number {
+    return this.state.segments.length;
+  }
+
+  /**
+   * Clone the routes instance (useful for creating variations)
+   */
+  clone(): Routes {
+    const cloned = new Routes();
+    cloned.state = { ...this.state };
+    return cloned;
   }
 }

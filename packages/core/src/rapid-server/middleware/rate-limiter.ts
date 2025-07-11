@@ -1,5 +1,19 @@
 import rateLimit from "express-rate-limit";
-import type { ServerFunction, RateLimitConfig } from "../../types";
+import type { ServerFunction } from "@/types";
+
+/**
+ * Rate limiting configuration for routes
+ */
+export interface RateLimitConfig {
+  /** Time window in milliseconds */
+  windowMs?: number;
+  /** Maximum requests per window */
+  max?: number;
+  /** Custom error message */
+  message?: string | { error: string; message: string };
+  /** Skip rate limiting for this route */
+  skip?: boolean;
+}
 
 // Express-compatible request/response adapters for Bun
 interface ExpressRequest {
@@ -120,7 +134,7 @@ function createRateLimitAdapter(limiter: any): ServerFunction {
                 statusCode,
                 _headers: responseHeaders,
               } as ExpressResponse,
-              responseData,
+              responseData
             );
             resolve(bunResponse);
           } else {
@@ -181,7 +195,7 @@ export const createRateLimitMiddleware = (limiter: any): ServerFunction => {
  */
 export const createCustomRateLimit = (
   config: RateLimitConfig,
-  routePath: string,
+  routePath: string
 ): ServerFunction => {
   const limiter = rateLimit({
     windowMs: config.windowMs || 60 * 1000, // Default 1 minute
@@ -203,7 +217,7 @@ export const createCustomRateLimit = (
 
 // Request size limiting middleware (keeping this as it's not part of express-rate-limit)
 export const createRequestSizeLimitMiddleware = (
-  maxSizeBytes: number = 1024 * 1024,
+  maxSizeBytes: number = 1024 * 1024
 ): ServerFunction => {
   return async (req: Request, url: URL) => {
     const contentLength = req.headers.get("content-length");
@@ -212,7 +226,9 @@ export const createRequestSizeLimitMiddleware = (
       return new Response(
         JSON.stringify({
           error: "Payload Too Large",
-          message: `Request size exceeds limit of ${Math.round(maxSizeBytes / 1024 / 1024)}MB`,
+          message: `Request size exceeds limit of ${Math.round(
+            maxSizeBytes / 1024 / 1024
+          )}MB`,
         }),
         {
           status: 413,
@@ -222,7 +238,7 @@ export const createRequestSizeLimitMiddleware = (
             "X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "strict-origin-when-cross-origin",
           },
-        },
+        }
       );
     }
 
@@ -261,7 +277,7 @@ export const createSuspiciousActivityMiddleware = (): ServerFunction => {
               "X-Content-Type-Options": "nosniff",
               "Referrer-Policy": "strict-origin-when-cross-origin",
             },
-          },
+          }
         );
       }
     }

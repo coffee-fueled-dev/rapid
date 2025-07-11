@@ -1,25 +1,21 @@
-import type { ApiRoute } from "../../types";
+import type { ServerFunction } from "@/types";
+import type { RateLimitConfig } from "../middleware/rate-limiter";
+import { getApiSecurityHeaders } from "./headers/api-headers";
 
-// Security headers for API responses
-function getApiSecurityHeaders(): Record<string, string> {
-  return {
-    // Prevent clickjacking
-    "X-Frame-Options": "DENY",
-    // Prevent MIME type sniffing
-    "X-Content-Type-Options": "nosniff",
-    // Control referrer information
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    // Disable caching of sensitive API responses
-    "Cache-Control": "no-store, no-cache, must-revalidate, private",
-    Pragma: "no-cache",
-    Expires: "0",
-  };
+/**
+ * Internal API route representation (with path added)
+ */
+export interface ApiRoute {
+  path: string;
+  handler: ServerFunction;
+  middleware?: ServerFunction | ServerFunction[];
+  rateLimit?: RateLimitConfig;
 }
 
 export async function handleAPIRequest(
   url: URL,
   req: Request,
-  apiRoutes: ApiRoute[],
+  apiRoutes: ApiRoute[]
 ): Promise<Response | null> {
   for (const apiRoute of apiRoutes) {
     if (

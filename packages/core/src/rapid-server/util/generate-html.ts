@@ -1,4 +1,4 @@
-import type { ServerRoute } from "../types";
+import type { PageRoute } from "@/rapid-server/handlers";
 
 // HTML escape function to prevent XSS
 function escapeHtml(unsafe: string): string {
@@ -15,7 +15,7 @@ function escapeJson(unsafe: string): string {
   return JSON.stringify(unsafe);
 }
 
-export function generateHTML(serverRoute: ServerRoute, path: string): string {
+export function generateHTML(serverRoute: PageRoute, path: string): string {
   const title = escapeHtml(serverRoute.metadata.title);
   const description = serverRoute.metadata.description
     ? escapeHtml(serverRoute.metadata.description)

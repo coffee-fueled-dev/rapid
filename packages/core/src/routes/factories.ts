@@ -1,13 +1,12 @@
 import React from "react";
-import type {
-  PageSegmentDescriptor,
-  ApiSegmentDescriptor,
-  RoutesSegmentDescriptor,
-  ServerFunction,
-  Metadata,
-  Routes,
-  RateLimitConfig,
-} from "../types";
+import type { ServerFunction, Metadata } from "@/types";
+import type { RateLimitConfig } from "@/rapid-server/middleware/rate-limiter";
+import type { Routes } from ".";
+
+export type SegmentDescriptor =
+  | PageSegmentDescriptor
+  | ApiSegmentDescriptor
+  | RoutesSegmentDescriptor;
 
 /**
  * Create a page segment descriptor
@@ -26,7 +25,7 @@ import type {
 export function page(
   component: React.ComponentType,
   metadata?: Metadata,
-  rateLimit?: RateLimitConfig,
+  rateLimit?: RateLimitConfig
 ): PageSegmentDescriptor {
   return {
     _type: "page",
@@ -34,6 +33,15 @@ export function page(
     metadata,
     rateLimit,
   };
+}
+/**
+ * Segment descriptors for declarative route definition
+ */
+export interface PageSegmentDescriptor {
+  _type: "page";
+  component: React.ComponentType;
+  metadata?: Metadata;
+  rateLimit?: RateLimitConfig;
 }
 
 /**
@@ -49,13 +57,18 @@ export function page(
  */
 export function api(
   handler: ServerFunction,
-  rateLimit?: RateLimitConfig,
+  rateLimit?: RateLimitConfig
 ): ApiSegmentDescriptor {
   return {
     _type: "api",
     handler,
     rateLimit,
   };
+}
+export interface ApiSegmentDescriptor {
+  _type: "api";
+  handler: ServerFunction;
+  rateLimit?: RateLimitConfig;
 }
 
 /**
@@ -71,11 +84,16 @@ export function api(
  */
 export function routes(
   routesInstance: Routes,
-  rateLimit?: RateLimitConfig,
+  rateLimit?: RateLimitConfig
 ): RoutesSegmentDescriptor {
   return {
     _type: "routes",
     routes: routesInstance,
     rateLimit,
   };
+}
+export interface RoutesSegmentDescriptor {
+  _type: "routes";
+  routes: Routes;
+  rateLimit?: RateLimitConfig;
 }

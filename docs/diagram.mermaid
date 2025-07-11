@@ -1,0 +1,36 @@
+graph TB
+    subgraph "Server-Side (RapidServer)"
+        A[HTTP Request] --> B[RapidServer]
+        B --> C{Route Type?}
+        C -->|Page Route| D[Execute Middleware]
+        C -->|API Route| E[Execute API Handler]
+        C -->|Static Asset| F[Serve Asset]
+        D --> G[Generate HTML]
+        G --> H[Return HTML + Links]
+        E --> I[Return JSON/Response]
+        F --> J[Return CSS/JS]
+    end
+    
+    subgraph "Client-Side (RapidClient)"
+        K[HTML Loads] --> L[RapidClient Hydrates]
+        L --> M[MicroRouter Takes Over]
+        M --> N[User Clicks Link]
+        N --> O[Fetch from Server]
+        O --> P[Compare Layouts]
+        P --> Q[Preserve Shared Layouts]
+        Q --> R[Re-render Changed Components]
+    end
+    
+    subgraph "Generated Assets"
+        S["/styles.css<br/>CSS Bundle"]
+        T["/client.js<br/>Client Bundle"]
+    end
+    
+    H --> K
+    J --> S
+    J --> T
+    O --> B
+    
+    style B fill:#e1f5fe
+    style L fill:#f3e5f5
+    style M fill:#f3e5f5

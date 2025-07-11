@@ -1,4 +1,4 @@
-import type { ServerRoute, ApiRoute } from "../types";
+import type { PageRoute, ApiRoute } from "@/rapid-server/handlers";
 
 export function onListen({
   port,
@@ -6,7 +6,7 @@ export function onListen({
   apiRoutes,
 }: {
   port: number;
-  serverRoutes: Map<string, ServerRoute>;
+  serverRoutes: Map<string, PageRoute>;
   apiRoutes: ApiRoute[];
 }) {
   console.log(`🚀 Server running at http://localhost:${port}`);
