@@ -1,0 +1,22 @@
+{
+  "name": "@rapid/monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run build:packages",
+    "build:packages": "bun --filter='packages/*' run build",
+    "dev": "bun run dev:core",
+    "dev:core": "cd packages/core && bun run dev",
+    "clean": "bun run clean:packages",
+    "clean:packages": "bun --filter='packages/*' run clean",
+    "typecheck": "bun run typecheck:packages",
+    "typecheck:packages": "bun --filter='packages/*' run typecheck",
+    "install:all": "bun install"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

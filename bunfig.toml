@@ -1,0 +1,29 @@
+[install]
+# Use exact versions for reproducible builds
+exact = true
+
+# Enable auto-install for missing packages
+auto = true
+
+# Use the registry for faster installs
+registry = "https://registry.npmjs.org/"
+
+[install.cache]
+# Cache packages for faster subsequent installs
+disable = false
+
+[test]
+# Test configuration
+preload = ["./test/setup.ts"]
+
+[serve.static]
+# Static file serving configuration
+plugins = []
+
+[build]
+# Build configuration
+target = "bun"
+format = "esm"
+minify = false
+sourcemap = "inline"
+splitting = false 
