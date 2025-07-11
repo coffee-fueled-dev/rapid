@@ -1,6 +1,5 @@
 import type { ServerFunction } from "@/types";
 import type { RateLimitConfig } from "../middleware/rate-limiter";
-import { getApiSecurityHeaders } from "./headers/api-headers";
 
 /**
  * Internal API route representation (with path added)
@@ -45,22 +44,8 @@ export async function handleAPIRequest(
 
       // Ensure we only return Response objects
       if (handlerResult instanceof Response) {
-        // Add security headers to API responses
-        const securityHeaders = getApiSecurityHeaders();
-        const headers = new Headers(handlerResult.headers);
-
-        // Add security headers (don't override existing headers)
-        Object.entries(securityHeaders).forEach(([key, value]) => {
-          if (!headers.has(key)) {
-            headers.set(key, value);
-          }
-        });
-
-        return new Response(handlerResult.body, {
-          status: handlerResult.status,
-          statusText: handlerResult.statusText,
-          headers,
-        });
+        // Return the response as-is - security headers will be applied by middleware
+        return handlerResult;
       }
     }
   }

@@ -24,10 +24,95 @@ import {
   type RequestContext,
 } from "./modules/request-router";
 
+import {
+  getStaticAssetSecurityHeaders,
+  securityPresets,
+  type SecurityHeadersConfig,
+} from "./middleware/security-headers";
+
 function preventClientExecution(methodName: string) {
   if (typeof window !== "undefined") {
     throw new Error(`${methodName} can only be called on the server`);
   }
+}
+
+/**
+ * Apply security headers based on response type
+ */
+function applySecurityHeadersToResponse(
+  response: Response,
+  url: URL,
+  securityConfig: SecurityHeadersConfig
+): Response {
+  const headers = new Headers(response.headers);
+  const contentType = headers.get("content-type") || "";
+
+  // Determine security headers based on content type
+  let securityHeaders: Record<string, string> = {};
+
+  if (contentType.includes("text/html")) {
+    // Page response - full security headers
+    securityHeaders = {
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy":
+        securityConfig.permissionsPolicy ||
+        "camera=(), microphone=(), geolocation=()",
+      "X-XSS-Protection": "1; mode=block",
+    };
+
+    // Add CSP for pages
+    if (securityConfig.contentSecurityPolicy !== false) {
+      if (typeof securityConfig.contentSecurityPolicy === "string") {
+        securityHeaders["Content-Security-Policy"] =
+          securityConfig.contentSecurityPolicy;
+      } else {
+        // Use preset based on environment
+        const isDev = process.env.NODE_ENV !== "production";
+        securityHeaders["Content-Security-Policy"] = isDev
+          ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'"
+          : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; upgrade-insecure-requests";
+      }
+    }
+  } else if (contentType.includes("application/json")) {
+    // API response - no CSP, but cache control
+    securityHeaders = {
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      Pragma: "no-cache",
+      Expires: "0",
+    };
+  } else {
+    // Static assets - minimal headers
+    securityHeaders = getStaticAssetSecurityHeaders();
+  }
+
+  // Apply HSTS for HTTPS
+  if (url.protocol === "https:" && securityConfig.hsts !== false) {
+    securityHeaders["Strict-Transport-Security"] =
+      "max-age=31536000; includeSubDomains";
+  }
+
+  // Add security headers (don't override existing headers)
+  Object.entries(securityHeaders).forEach(([key, value]) => {
+    if (!headers.has(key)) {
+      headers.set(key, value);
+    }
+  });
+
+  // Additional framework security headers
+  headers.set("X-DNS-Prefetch-Control", "off");
+  headers.set("X-Download-Options", "noopen");
+  headers.set("X-Permitted-Cross-Domain-Policies", "none");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 export interface RapidServerConfig {
@@ -35,6 +120,7 @@ export interface RapidServerConfig {
   enableRateLimit?: boolean;
   maxRequestSize?: number;
   isDev?: boolean;
+  security?: SecurityHeadersConfig | "strict" | "development" | false;
 }
 
 export class RapidServer {
@@ -43,6 +129,7 @@ export class RapidServer {
   private routeCache: RouteCache;
   private assetConfig: AssetManagerConfig;
   private middlewareConfig: MiddlewareConfig;
+  private securityConfig: SecurityHeadersConfig;
 
   constructor(config: RapidServerConfig = {}) {
     // Initialize functional module state
@@ -59,6 +146,21 @@ export class RapidServer {
       enableRateLimit: config.enableRateLimit ?? true,
       maxRequestSize: config.maxRequestSize ?? 1024 * 1024, // 1MB default
     };
+
+    // Security configuration
+    if (config.security === false) {
+      this.securityConfig = {}; // No security headers
+    } else if (typeof config.security === "string") {
+      this.securityConfig = securityPresets[
+        config.security
+      ] as unknown as SecurityHeadersConfig;
+    } else {
+      // Use development preset by default in dev, strict in production
+      const defaultPreset = this.assetConfig.isDev ? "development" : "strict";
+      this.securityConfig =
+        config.security ||
+        (securityPresets[defaultPreset] as unknown as SecurityHeadersConfig);
+    }
   }
 
   /**
@@ -118,7 +220,14 @@ export class RapidServer {
     this.assetCache = result.updatedAssetCache;
     this.routeCache = result.updatedRouteCache;
 
-    return result.response;
+    // Apply security headers automatically
+    const secureResponse = applySecurityHeadersToResponse(
+      result.response,
+      url,
+      this.securityConfig
+    );
+
+    return secureResponse;
   }
 
   /**
@@ -135,6 +244,8 @@ export class RapidServer {
         `📏 Max request size: ${this.middlewareConfig.maxRequestSize} bytes`
       );
     }
+
+    console.log("🔒 Security headers enabled");
 
     Bun.serve({
       port,

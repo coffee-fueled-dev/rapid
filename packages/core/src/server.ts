@@ -35,6 +35,42 @@ export {
 
 export type { RateLimitConfig } from "./rapid-server/middleware/rate-limiter";
 
+// Security middleware
+export {
+  createCSRFProtection,
+  createCSRFTokenEndpoint,
+  getCSRFToken,
+  cleanupExpiredTokens,
+} from "./rapid-server/middleware/csrf-protection";
+
+export type { CSRFConfig } from "./rapid-server/middleware/csrf-protection";
+
+export {
+  createSecurityHeadersMiddleware,
+  getStaticAssetSecurityHeaders,
+  securityPresets,
+} from "./rapid-server/middleware/security-headers";
+
+export type {
+  SecurityHeadersConfig,
+  CSPOptions,
+  HSTSOptions,
+} from "./rapid-server/middleware/security-headers";
+
+// Input sanitization utilities
+export {
+  sanitize,
+  escapeHtml,
+  stripDangerousHtml,
+  sanitizeSqlInput,
+  sanitizeUrl,
+  sanitizeFilePath,
+  sanitizeNumber,
+  sanitizeEmail,
+  sanitizeInput,
+  createInputSanitationMiddleware,
+} from "./rapid-server/middleware/input-sanitization";
+
 // Server-side query parameter utilities
 export { withQuery, getQuery } from "./query-parameters/server";
 

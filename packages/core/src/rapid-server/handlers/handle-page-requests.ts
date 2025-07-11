@@ -1,5 +1,4 @@
 import type { Metadata, ServerFunction } from "@/types";
-import { getPageHeaders } from "./headers/page-headers";
 import {
   composeMiddleware,
   type ResponseModifier,
@@ -25,7 +24,6 @@ export async function handlePageRequest(
   let responseModifier: ResponseModifier | null = null;
   const isNavigationRequest =
     req.headers.get("X-Requested-With") === "XMLHttpRequest";
-  const isDev = process.env.NODE_ENV !== "production";
 
   // Execute middleware first if it exists
   if (pageRoute?.middleware) {
@@ -61,13 +59,9 @@ export async function handlePageRequest(
 
   if (!html) throw new Error(`Failed to get HTML for ${url}`);
 
-  const securityHeaders = getPageHeaders(isDev);
-
   let response = new Response(html, {
     headers: {
       "Content-Type": "text/html",
-      // Add security headers
-      ...securityHeaders,
       // Add a header to indicate this was a successful page render
       ...(isNavigationRequest && { "X-Navigation-Success": "true" }),
     },

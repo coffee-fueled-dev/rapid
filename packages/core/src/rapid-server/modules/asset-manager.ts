@@ -121,17 +121,10 @@ export function createAssetResponse(
   contentType: string,
   isDev: boolean
 ): Response {
-  const securityHeaders = {
-    "X-Frame-Options": "DENY",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-  };
-
   return new Response(content, {
     headers: {
       "Content-Type": contentType,
       "Cache-Control": isDev ? "no-cache" : "public, max-age=31536000",
-      ...securityHeaders,
       ...(isDev && {
         Pragma: "no-cache",
         Expires: "0",
@@ -147,17 +140,10 @@ export function createAssetErrorResponse(
   contentType: string,
   fallbackContent: string = ""
 ): Response {
-  const securityHeaders = {
-    "X-Frame-Options": "DENY",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-  };
-
   return new Response(fallbackContent, {
     status: 500,
     headers: {
       "Content-Type": contentType,
-      ...securityHeaders,
     },
   });
 }
