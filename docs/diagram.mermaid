@@ -1,36 +1,38 @@
-graph TB
-    subgraph "Server-Side (RapidServer)"
-        A[HTTP Request] --> B[RapidServer]
-        B --> C{Route Type?}
-        C -->|Page Route| D[Execute Middleware]
-        C -->|API Route| E[Execute API Handler]
-        C -->|Static Asset| F[Serve Asset]
-        D --> G[Generate HTML]
-        G --> H[Return HTML + Links]
-        E --> I[Return JSON/Response]
-        F --> J[Return CSS/JS]
-    end
+sequenceDiagram
+    participant User as User
+    participant Browser as Browser
+    participant RapidServer as RapidServer
+    participant MW as Middleware
+    participant RapidClient as RapidClient
+    participant MicroRouter as MicroRouter
+
+    Note over User,MicroRouter: Initial Page Load (SSR)
     
-    subgraph "Client-Side (RapidClient)"
-        K[HTML Loads] --> L[RapidClient Hydrates]
-        L --> M[MicroRouter Takes Over]
-        M --> N[User Clicks Link]
-        N --> O[Fetch from Server]
-        O --> P[Compare Layouts]
-        P --> Q[Preserve Shared Layouts]
-        Q --> R[Re-render Changed Components]
-    end
+    User->>Browser: Visit /dashboard
+    Browser->>RapidServer: GET /dashboard
+    RapidServer->>MW: Execute middleware (auth, rate limiting)
+    MW->>RapidServer: Middleware passed
+    RapidServer->>RapidServer: Generate HTML with React SSR
+    RapidServer->>Browser: Return HTML + /client.js + /styles.css
     
-    subgraph "Generated Assets"
-        S["/styles.css<br/>CSS Bundle"]
-        T["/client.js<br/>Client Bundle"]
-    end
+    Note over User,MicroRouter: Client-Side Hydration
     
-    H --> K
-    J --> S
-    J --> T
-    O --> B
+    Browser->>Browser: Load HTML
+    Browser->>RapidServer: GET /client.js
+    RapidServer->>Browser: Return client bundle
+    Browser->>RapidClient: Initialize RapidClient
+    RapidClient->>MicroRouter: Setup client-side routing
+    RapidClient->>Browser: Hydrate React components
     
-    style B fill:#e1f5fe
-    style L fill:#f3e5f5
-    style M fill:#f3e5f5
+    Note over User,MicroRouter: Client-Side Navigation
+    
+    User->>Browser: Click link to /dashboard/users
+    Browser->>MicroRouter: Intercept navigation
+    MicroRouter->>RapidServer: Fetch /dashboard/users (server-side)
+    RapidServer->>MW: Execute middleware (auth, rate limiting)
+    MW->>RapidServer: Middleware passed
+    RapidServer->>MicroRouter: Return HTML response
+    MicroRouter->>MicroRouter: Compare layout trees
+    MicroRouter->>Browser: Preserve shared layouts
+    MicroRouter->>Browser: Re-render only changed components
+    Browser->>User: Updated page (no full reload)
