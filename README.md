@@ -6,21 +6,6 @@ Rapid is a full-stack TypeScript framework for building web applications with Re
 
 Please don't use this in production just yet. There will be bugs. Use with care
 
-## Quick Start
-
-```bash
-# Clone and setup
-git clone <repo>
-cd protologic
-bun install
-
-# Start development
-cd apps/dev
-bun run src/server.ts
-```
-
-Visit `http://localhost:3000` to see your app.
-
 ## Core Concepts
 
 - **Routes**: Define pages and API endpoints
@@ -38,12 +23,3 @@ Visit `http://localhost:3000` to see your app.
 5. [Server Setup](./docs/server.md) - Configure your server
 6. [Rate Limiting](./docs/rate-limiting.md) - Protect your APIs
 7. [CSS & Styling](./docs/styling.md) - Style your application
-
-## Examples
-
-See the `apps/dev` directory for a complete working example with:
-
-- Authentication
-- Search with query parameters
-- Dashboard with protected routes
-- API endpoints with rate limiting
