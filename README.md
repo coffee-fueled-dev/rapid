@@ -2,6 +2,10 @@
 
 Rapid is a full-stack TypeScript framework for building web applications with React, built on top of Bun.
 
+## Work in progress
+
+Please don't use this in production just yet. There will be bugs. Use with care
+
 ## Quick Start
 
 ```bash
