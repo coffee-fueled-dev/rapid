@@ -22,4 +22,3 @@ There will be bugs. Use with care
 4. [Components](./docs/components.md) - Build React UIs
 5. [Query Parameters](./docs/query-params.md) - Handle URL parameters
 6. [Security](./docs/security.md) - Built-in security features
-7. [Modular Architecture](./docs/modular-architecture.md) - Server architecture details

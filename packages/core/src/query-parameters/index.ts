@@ -15,6 +15,4 @@ export {
   parseQueryString,
   stringifyQueryParams,
   mergeQueryParams,
-  getQueryParam,
-  getQueryParamArray,
 } from "./shared";

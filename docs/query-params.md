@@ -1,153 +1,94 @@
 # Query Parameters
 
-Handle URL query parameters with type safety on both client and server.
+Handle URL query parameters with a simple, unified API on both client and server.
 
-## Client-Side Hooks
+## Client-Side Hook
 
 ### useQueryParams()
 
-Get all current query parameters:
+One hook that handles all query parameter scenarios:
 
 ```typescript
 import { useQueryParams } from "@protologic/rapid/client";
 
 export function SearchPage() {
-  const params = useQueryParams();
+  const [params, setParams] = useQueryParams();
 
-  // params = { q: "search term", page: "1", filters: ["tag1", "tag2"] }
+  // Get specific parameter with default
+  const search = params.search || "";
+  const page = parseInt(params.page || "1", 10);
 
-  return <div>Query: {params.q}</div>;
-}
-```
-
-### useTypedQueryParams()
-
-Type-safe query parameters with validation:
-
-```typescript
-import { useTypedQueryParams } from "@protologic/rapid/client";
-import type { QueryParamSchema } from "@protologic/rapid/client";
-
-const searchSchema: QueryParamSchema = {
-  q: { type: "string", default: "" },
-  page: { type: "number", default: 1 },
-  limit: { type: "number", default: 10 },
-  filters: { type: "array", default: [] },
-  active: { type: "boolean", default: true }
-};
-
-interface SearchQuery {
-  q: string;
-  page: number;
-  limit: number;
-  filters: string[];
-  active: boolean;
-}
-
-export function SearchPage() {
-  const [query, setQuery] = useTypedQueryParams<SearchQuery>(searchSchema);
-
-  // query is fully typed and validated
-  // URL automatically syncs when setQuery is called
+  // Handle array parameters
+  const tags = Array.isArray(params.tags)
+    ? params.tags
+    : params.tags
+    ? [params.tags]
+    : [];
 
   const handleSearch = (searchTerm: string) => {
-    setQuery({ ...query, q: searchTerm, page: 1 });
+    setParams({ search: searchTerm, page: "1" });
   };
-
-  return (
-    <div>
-      <input
-        value={query.q}
-        onChange={(e) => handleSearch(e.target.value)}
-      />
-      <p>Page: {query.page}</p>
-      <p>Active: {query.active ? "Yes" : "No"}</p>
-    </div>
-  );
-}
-```
-
-### useQueryParam()
-
-Handle individual query parameters:
-
-```typescript
-import { useQueryParam } from "@protologic/rapid/client";
-
-export function FilterComponent() {
-  const [category, setCategory] = useQueryParam("category", "all");
-
-  return (
-    <select
-      value={category}
-      onChange={(e) => setCategory(e.target.value)}
-    >
-      <option value="all">All Categories</option>
-      <option value="tech">Technology</option>
-      <option value="business">Business</option>
-    </select>
-  );
-}
-```
-
-### useQueryParamArray()
-
-Handle array query parameters:
-
-```typescript
-import { useQueryParamArray } from "@protologic/rapid/client";
-
-export function TagFilter() {
-  const [tags, setTags] = useQueryParamArray("tags", []);
 
   const toggleTag = (tag: string) => {
-    if (tags.includes(tag)) {
-      setTags(tags.filter(t => t !== tag));
-    } else {
-      setTags([...tags, tag]);
-    }
+    const newTags = tags.includes(tag)
+      ? tags.filter((t) => t !== tag)
+      : [...tags, tag];
+    setParams({ tags: newTags });
   };
 
   return (
     <div>
-      {["react", "typescript", "node"].map(tag => (
-        <button
-          key={tag}
-          onClick={() => toggleTag(tag)}
-          className={tags.includes(tag) ? "active" : ""}
-        >
-          {tag}
-        </button>
-      ))}
+      <input value={search} onChange={(e) => handleSearch(e.target.value)} />
+      <p>Page: {page}</p>
+      <p>Tags: {tags.join(", ")}</p>
     </div>
   );
 }
 ```
 
-### useQueryNavigation()
+### Common Patterns
 
-Navigate with query parameters:
+**Single string parameter:**
 
 ```typescript
-import { useQueryNavigation } from "@protologic/rapid/client";
+const [params, setParams] = useQueryParams();
+const category = params.category || "all";
 
-export function NavigationExample() {
-  const navigate = useQueryNavigation();
+// Update
+setParams({ category: "tech" });
 
-  const searchProducts = () => {
-    navigate("/search", {
-      q: "laptops",
-      category: "electronics",
-      sort: "price"
-    });
-  };
+// Clear
+setParams({ category: undefined });
+```
 
-  return (
-    <button onClick={searchProducts}>
-      Search Laptops
-    </button>
-  );
-}
+**Array parameter:**
+
+```typescript
+const [params, setParams] = useQueryParams();
+const filters = Array.isArray(params.filters)
+  ? params.filters
+  : params.filters
+  ? [params.filters]
+  : [];
+
+// Update
+setParams({ filters: ["tag1", "tag2"] });
+
+// Add to array
+setParams({ filters: [...filters, "newTag"] });
+```
+
+**Multiple parameters:**
+
+```typescript
+const [params, setParams] = useQueryParams();
+
+// Update multiple at once
+setParams({
+  search: "laptops",
+  category: "electronics",
+  page: "1",
+});
 ```
 
 ## Server-Side Utilities
@@ -168,169 +109,99 @@ export async function handleSearch(req: Request, url: URL): Promise<Response> {
 }
 ```
 
-### Type-Safe Server Query Parameters
+### Unified Server Query Utilities
 
 ```typescript
-import { withQueryParams } from "@protologic/rapid/server/query-params";
-import type { QueryParamSchema } from "@protologic/rapid";
+import { withQuery, getQuery } from "@protologic/rapid/server/query-params";
 
-const searchSchema: QueryParamSchema = {
-  q: { type: "string", required: true },
-  page: { type: "number", default: 1 },
-  limit: { type: "number", default: 10 },
-  sort: { type: "string", default: "relevance" },
-  filters: { type: "array", default: [] },
-  includeArchived: { type: "boolean", default: false },
-};
+// Using the wrapper function
+export const handleSearch = withQuery(async (req, url, query) => {
+  const search = query.search || "";
+  const page = parseInt(query.page || "1", 10);
+  const tags = Array.isArray(query.tags)
+    ? query.tags
+    : query.tags
+    ? [query.tags]
+    : [];
 
-interface SearchQuery {
-  q: string;
-  page: number;
-  limit: number;
-  sort: string;
-  filters: string[];
-  includeArchived: boolean;
+  const results = await searchItems(search, page, tags);
+
+  return Response.json(results);
+});
+
+// Direct query extraction
+export async function handleProducts(
+  req: Request,
+  url: URL
+): Promise<Response> {
+  const query = getQuery(url);
+  const category = query.category || "all";
+  const inStock = query.inStock === "true";
+
+  const products = await getProducts({ category, inStock });
+
+  return Response.json(products);
 }
-
-export const handleSearch = withQueryParams<SearchQuery>(
-  searchSchema,
-  async (req, url, query) => {
-    // query is validated and typed
-    // Returns 400 error for invalid parameters
-
-    const results = await searchItems({
-      query: query.q,
-      page: query.page,
-      limit: query.limit,
-      sort: query.sort,
-      filters: query.filters,
-      includeArchived: query.includeArchived,
-    });
-
-    return new Response(JSON.stringify(results), {
-      headers: { "Content-Type": "application/json" },
-    });
-  },
-);
-```
-
-## Schema Types
-
-### String Parameters
-
-```typescript
-const schema: QueryParamSchema = {
-  name: { type: "string", required: true },
-  category: { type: "string", default: "all" },
-};
-```
-
-### Number Parameters
-
-```typescript
-const schema: QueryParamSchema = {
-  page: { type: "number", default: 1 },
-  limit: { type: "number", default: 10 },
-  price: { type: "number", required: true },
-};
-```
-
-### Boolean Parameters
-
-```typescript
-const schema: QueryParamSchema = {
-  active: { type: "boolean", default: true },
-  featured: { type: "boolean", default: false },
-};
-
-// URL: ?active=true&featured=false
-// URL: ?active=1&featured=0  (also works)
-```
-
-### Array Parameters
-
-```typescript
-const schema: QueryParamSchema = {
-  tags: { type: "array", default: [] },
-  categories: { type: "array", default: ["all"] },
-};
-
-// URL: ?tags=react&tags=typescript&tags=node
-// Result: { tags: ["react", "typescript", "node"] }
 ```
 
 ## Complete Example
-
-Client component with server API:
 
 **Client Component:**
 
 ```typescript
 import React, { useState, useEffect } from "react";
-import { useTypedQueryParams } from "@protologic/rapid/client";
-import type { QueryParamSchema } from "@protologic/rapid/client";
-
-const productSchema: QueryParamSchema = {
-  search: { type: "string", default: "" },
-  category: { type: "string", default: "all" },
-  minPrice: { type: "number", default: 0 },
-  maxPrice: { type: "number", default: 1000 },
-  tags: { type: "array", default: [] },
-  inStock: { type: "boolean", default: true },
-  page: { type: "number", default: 1 }
-};
-
-interface ProductQuery {
-  search: string;
-  category: string;
-  minPrice: number;
-  maxPrice: number;
-  tags: string[];
-  inStock: boolean;
-  page: number;
-}
+import { useQueryParams } from "@protologic/rapid/client";
 
 export function ProductSearch() {
-  const [query, setQuery] = useTypedQueryParams<ProductQuery>(productSchema);
+  const [params, setParams] = useQueryParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Extract parameters with defaults
+  const search = params.search || "";
+  const category = params.category || "all";
+  const inStock = params.inStock === "true";
+  const page = parseInt(params.page || "1", 10);
+  const tags = Array.isArray(params.tags)
+    ? params.tags
+    : params.tags
+    ? [params.tags]
+    : [];
 
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
 
-      const params = new URLSearchParams({
-        search: query.search,
-        category: query.category,
-        minPrice: query.minPrice.toString(),
-        maxPrice: query.maxPrice.toString(),
-        inStock: query.inStock.toString(),
-        page: query.page.toString()
+      const searchParams = new URLSearchParams({
+        search,
+        category,
+        inStock: inStock.toString(),
+        page: page.toString(),
       });
 
-      query.tags.forEach(tag => params.append("tags", tag));
+      tags.forEach((tag) => searchParams.append("tags", tag));
 
-      const response = await fetch(`/api/products?${params}`);
+      const response = await fetch(`/api/products?${searchParams}`);
       const data = await response.json();
       setProducts(data.products);
       setLoading(false);
     };
 
     fetchProducts();
-  }, [query.search, query.category, query.minPrice, query.maxPrice, query.tags.join(','), query.inStock, query.page]);
+  }, [search, category, inStock, page, tags.join(",")]);
 
   return (
     <div>
       <input
         type="text"
         placeholder="Search products..."
-        value={query.search}
-        onChange={(e) => setQuery({ ...query, search: e.target.value, page: 1 })}
+        value={search}
+        onChange={(e) => setParams({ search: e.target.value, page: "1" })}
       />
 
       <select
-        value={query.category}
-        onChange={(e) => setQuery({ ...query, category: e.target.value, page: 1 })}
+        value={category}
+        onChange={(e) => setParams({ category: e.target.value, page: "1" })}
       >
         <option value="all">All Categories</option>
         <option value="electronics">Electronics</option>
@@ -340,15 +211,17 @@ export function ProductSearch() {
       <label>
         <input
           type="checkbox"
-          checked={query.inStock}
-          onChange={(e) => setQuery({ ...query, inStock: e.target.checked })}
+          checked={inStock}
+          onChange={(e) => setParams({ inStock: e.target.checked.toString() })}
         />
         In Stock Only
       </label>
 
-      {loading ? <div>Loading...</div> : (
+      {loading ? (
+        <div>Loading...</div>
+      ) : (
         <div>
-          {products.map(product => (
+          {products.map((product) => (
             <div key={product.id}>{product.name}</div>
           ))}
         </div>
@@ -361,52 +234,32 @@ export function ProductSearch() {
 **Server API:**
 
 ```typescript
-import { withQueryParams } from "@protologic/rapid/server/query-params";
-import type { QueryParamSchema } from "@protologic/rapid";
+import { withQuery } from "@protologic/rapid/server/query-params";
 
-const productSearchSchema: QueryParamSchema = {
-  search: { type: "string", default: "" },
-  category: { type: "string", default: "all" },
-  minPrice: { type: "number", default: 0 },
-  maxPrice: { type: "number", default: 1000 },
-  tags: { type: "array", default: [] },
-  inStock: { type: "boolean", default: true },
-  page: { type: "number", default: 1 },
-};
+export const handleProductSearch = withQuery(async (req, url, query) => {
+  const search = query.search || "";
+  const category = query.category === "all" ? undefined : query.category;
+  const inStock = query.inStock === "true";
+  const page = parseInt(query.page || "1", 10);
+  const tags = Array.isArray(query.tags)
+    ? query.tags
+    : query.tags
+    ? [query.tags]
+    : [];
 
-interface ProductSearchQuery {
-  search: string;
-  category: string;
-  minPrice: number;
-  maxPrice: number;
-  tags: string[];
-  inStock: boolean;
-  page: number;
-}
+  const products = await searchProducts({
+    search,
+    category,
+    tags,
+    inStock,
+    page,
+    limit: 20,
+  });
 
-export const handleProductSearch = withQueryParams<ProductSearchQuery>(
-  productSearchSchema,
-  async (req, url, query) => {
-    const products = await searchProducts({
-      search: query.search,
-      category: query.category === "all" ? undefined : query.category,
-      priceRange: [query.minPrice, query.maxPrice],
-      tags: query.tags,
-      inStock: query.inStock,
-      page: query.page,
-      limit: 20,
-    });
-
-    return new Response(
-      JSON.stringify({
-        products: products.data,
-        total: products.total,
-        page: query.page,
-      }),
-      {
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-  },
-);
+  return Response.json({
+    products: products.data,
+    total: products.total,
+    page,
+  });
+});
 ```

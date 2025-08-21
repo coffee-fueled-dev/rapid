@@ -1,5 +1,5 @@
 /**
- * Simple client-side query parameter utilities
+ * Unified client-side query parameter hook
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -8,12 +8,27 @@ import {
   parseQueryString,
   stringifyQueryParams,
   mergeQueryParams,
-  getQueryParam,
-  getQueryParamArray,
 } from "./shared";
 
 /**
- * Hook to get current query parameters
+ *
+ * @example
+ * ```typescript
+ * // Get all parameters
+ * const [params, setParams] = useQueryParams();
+ *
+ * // Get specific parameter with default
+ * const search = params.search || "";
+ *
+ * // Get array parameter
+ * const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
+ *
+ * // Update parameters
+ * setParams({ search: "new value", page: "1" });
+ *
+ * // Clear a parameter
+ * setParams({ search: undefined });
+ * ```
  */
 export function useQueryParams(): [
   QueryParams,
@@ -69,44 +84,4 @@ export function useQueryParams(): [
   }, []);
 
   return [params, setQueryParams];
-}
-
-/**
- * Hook to get a single query parameter
- */
-export function useQueryParam(
-  key: string,
-  defaultValue?: string
-): [string | undefined, (value: string | undefined) => void] {
-  const [params, setParams] = useQueryParams();
-  const value = getQueryParam(params, key, defaultValue);
-
-  const setValue = useCallback(
-    (newValue: string | undefined) => {
-      setParams({ [key]: newValue });
-    },
-    [key, setParams]
-  );
-
-  return [value, setValue];
-}
-
-/**
- * Hook to get an array query parameter
- */
-export function useQueryParamArray(
-  key: string,
-  defaultValue: string[] = []
-): [string[], (values: string[]) => void] {
-  const [params, setParams] = useQueryParams();
-  const values = getQueryParamArray(params, key, defaultValue);
-
-  const setValues = useCallback(
-    (newValues: string[]) => {
-      setParams({ [key]: newValues.length > 0 ? newValues : undefined });
-    },
-    [key, setParams]
-  );
-
-  return [values, setValues];
 }

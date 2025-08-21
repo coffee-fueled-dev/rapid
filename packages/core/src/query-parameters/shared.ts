@@ -69,29 +69,3 @@ export function mergeQueryParams(
 
   return result;
 }
-
-/**
- * Get a single query parameter value
- */
-export function getQueryParam(
-  params: QueryParams,
-  key: string,
-  defaultValue?: string
-): string | undefined {
-  const value = params[key];
-  if (value === undefined) return defaultValue;
-  return Array.isArray(value) ? value[0] : value;
-}
-
-/**
- * Get an array query parameter value
- */
-export function getQueryParamArray(
-  params: QueryParams,
-  key: string,
-  defaultValue: string[] = []
-): string[] {
-  const value = params[key];
-  if (value === undefined) return defaultValue;
-  return Array.isArray(value) ? value : [value];
-}
